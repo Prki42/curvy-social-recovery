@@ -1,26 +1,17 @@
 package keyrecovery
 
 import (
+	"fmt"
 	BN254_fr "github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	SECP256K1_fr "github.com/consensys/gnark-crypto/ecc/secp256k1/fr"
 	"testing"
 )
 
 func TestSplitAndRecover(t *testing.T) {
-	var spendingKey SECP256K1_fr.Element
-	var viewingKey BN254_fr.Element
-
-	_, err := spendingKey.SetRandom()
+	spendingKeyStr, viewingKeyStr, err := setupRandomKeys()
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = viewingKey.SetRandom()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	spendingKeyStr := "0x" + spendingKey.Text(16)
-	viewingKeyStr := "0x" + viewingKey.Text(16)
 
 	n := 20
 	threshold := 14
@@ -69,4 +60,56 @@ func TestSplitAndRecover(t *testing.T) {
 			t.Error("Keys should not have been reconstructed")
 		}
 	})
+}
+
+func BenchmarkSplit(b *testing.B) {
+	spendingKeyStr, viewingKeyStr, err := setupRandomKeys()
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	n := 20
+	threshold := 14
+
+	for b.Loop() {
+		Split(threshold, n, spendingKeyStr, viewingKeyStr)
+	}
+}
+
+func BenchmarkRecover(b *testing.B) {
+	spendingKeyStr, viewingKeyStr, err := setupRandomKeys()
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	n := 20
+	threshold := 14
+
+	shares, err := Split(threshold, n, spendingKeyStr, viewingKeyStr)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	for b.Loop() {
+		Recover(threshold, shares)
+	}
+}
+
+func setupRandomKeys() (string, string, error) {
+	var spendingKey SECP256K1_fr.Element
+	var viewingKey BN254_fr.Element
+
+	_, err := spendingKey.SetRandom()
+	if err != nil {
+		return "", "", fmt.Errorf("failed to generate random spending key: %v", err)
+	}
+	_, err = viewingKey.SetRandom()
+	if err != nil {
+		return "", "", fmt.Errorf("failed to generate random viewing key: %v", err)
+	}
+
+	spendingKeyStr := "0x" + spendingKey.Text(16)
+	viewingKeyStr := "0x" + viewingKey.Text(16)
+
+	return spendingKeyStr, viewingKeyStr, nil
 }
