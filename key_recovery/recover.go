@@ -2,33 +2,30 @@ package keyrecovery
 
 import (
 	"errors"
-
 	BN254_fr "github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	SECP256K1_fr "github.com/consensys/gnark-crypto/ecc/secp256k1/fr"
 )
 
-func Recover(threshold_t uint64, shares []Share) (string, string, error) {
+func Recover(threshold int, shares []Share) (string, string, error) {
 
 	// Check if the number of shares is less than the threshold
-	if uint64(len(shares)) < threshold_t {
+	if len(shares) < threshold {
 		return "", "", errors.New("number of shares is less than the threshold")
 	}
 
 	// Truncate the shares to the threshold value
-	// there is no need to use more then t shares for the interpolation
-	shares = shares[0:threshold_t]
+	// there is no need to use more than t=threshold shares for the interpolation
+	shares = shares[0:threshold]
 
-	var n uint64 = uint64(len(shares))
-	
-	var points = make([]point, n)
-	
+	var points = make([]point, threshold)
+
 	// Transform the shares from string to field element before interpolating
-	for i := uint64(0); i < n; i++ {
-		_, errX1 := points[i].xS.SetString(shares[i].GetX())
-		_, errX2 := points[i].xV.SetString(shares[i].GetX())
-		_, errY1 := points[i].yS.SetString(shares[i].GetSpending())
-		_, errY2 := points[i].yV.SetString(shares[i].GetViewing())
-		
+	for i := range points {
+		_, errX1 := points[i].xS.SetString(shares[i].Point)
+		_, errX2 := points[i].xV.SetString(shares[i].Point)
+		_, errY1 := points[i].yS.SetString(shares[i].SpendingEval)
+		_, errY2 := points[i].yV.SetString(shares[i].ViewingEval)
+
 		if errX1 != nil {
 			return "", "", errX1
 		}
@@ -43,23 +40,21 @@ func Recover(threshold_t uint64, shares []Share) (string, string, error) {
 		}
 	}
 
-	
-
-	// Define the spending key and viewing key as field elements for calucations
+	// Define the spending key and viewing key as field elements for calculations
 	var sk SECP256K1_fr.Element
 	var vk BN254_fr.Element
 
 	// Initialize the spending key and viewing key as zero
-	sk.SetUint64(0)
-	vk.SetUint64(0)
+	sk.SetZero()
+	vk.SetZero()
 
 	// Recover the spending key and viewing key from the shares
 	//  		n             n
-	// Result = Σ  y_j   *    Π ( x_j / (x_j - x_i) )
+	// Result = Σ  y_i   *    Π ( x_j / (x_j - x_i) )
 	// 		   i=1           j=1
 	// 						j ≠ i
-	
-	for i := uint64(0); i < n; i++ {
+
+	for i := range points {
 		// Define interpolation variables as field elements for calculations
 		// and set them to the values of the shares (yi)
 		var lsk SECP256K1_fr.Element
@@ -68,7 +63,7 @@ func Recover(threshold_t uint64, shares []Share) (string, string, error) {
 		lvk.Set(&points[i].yV)
 
 		// Calculate the Li values for the current term
-		for j := uint64(0); j < n; j++ {
+		for j := range points {
 			if i == j {
 				continue
 			}
@@ -94,8 +89,8 @@ func Recover(threshold_t uint64, shares []Share) (string, string, error) {
 		vk.Add(&vk, &lvk)
 	}
 
-	var spendingKey string = sk.String()
-	var viewingKey string = vk.String()
+	spendingKey := "0x" + sk.Text(16)
+	viewingKey := "0x" + vk.Text(16)
 
 	return spendingKey, viewingKey, nil
 }

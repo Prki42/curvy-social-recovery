@@ -7,18 +7,18 @@ import (
 	SECP256K1_fr "github.com/consensys/gnark-crypto/ecc/secp256k1/fr"
 )
 
-func Split(threashold_t, numberOfShares_n uint64, spendingKey_sk, viewingKey_vk string) ([]Share, error) {
-	
-	if threashold_t > numberOfShares_n {
-		return nil, errors.New("threashold t should be less than or equal to number of shares n")
+func Split(threshold, nOfShares int, spendingKey, viewingKey string) ([]Share, error) {
+
+	if threshold > nOfShares {
+		return nil, errors.New("threshold t should be less than or equal to number of shares n")
 	}
 
 	// Generate the polynomials for the spending key and viewing key
-	var skPolynomial []SECP256K1_fr.Element = make([]SECP256K1_fr.Element, threashold_t)
-	var vkPolynomial []BN254_fr.Element = make([]BN254_fr.Element, threashold_t)
+	skPolynomial := make([]SECP256K1_fr.Element, threshold)
+	vkPolynomial := make([]BN254_fr.Element, threshold)
 
 	// Generate random coefficients for the polynomials
-	for i := uint64(1); i < threashold_t; i++ {
+	for i := 1; i < threshold; i++ {
 		_, errs := skPolynomial[i].SetRandom()
 		_, errv := vkPolynomial[i].SetRandom()
 
@@ -29,10 +29,10 @@ func Split(threashold_t, numberOfShares_n uint64, spendingKey_sk, viewingKey_vk 
 			return nil, errv
 		}
 	}
-	
+
 	// Set the free coefficients of the polynomials to the spending key and viewing key
-	_, errs := skPolynomial[0].SetString(spendingKey_sk)
-	_, errv := vkPolynomial[0].SetString(viewingKey_vk)
+	_, errs := skPolynomial[0].SetString(spendingKey)
+	_, errv := vkPolynomial[0].SetString(viewingKey)
 
 	if errs != nil {
 		return nil, errs
@@ -42,43 +42,43 @@ func Split(threashold_t, numberOfShares_n uint64, spendingKey_sk, viewingKey_vk 
 	}
 
 	// Generate the shares
-	var shares []Share = make([]Share, numberOfShares_n)
-	for i := uint64(0); i < numberOfShares_n; i++ {
+	shares := make([]Share, nOfShares)
+	for i := range shares {
 		// Define x coordinate for the share as field element
 		var xsk SECP256K1_fr.Element
 		var xvk BN254_fr.Element
-		xsk.SetUint64(i+1)
-		xvk.SetUint64(i+1)
+		xsk.SetUint64(uint64(i + 1))
+		xvk.SetUint64(uint64(i + 1))
 
 		// Evaluate the polynomials at the x coordinate
-		var y1 SECP256K1_fr.Element = evalSpending(skPolynomial, xsk)
-		var y2 BN254_fr.Element = evalViewing(vkPolynomial, xvk)
+		spendingEval := evalSpending(skPolynomial, &xsk)
+		viewingEval := evalViewing(vkPolynomial, &xvk)
 
 		// Set the share
-		shares[i].SetX(xsk.String())
-		shares[i].SetSpending(y1.String())
-		shares[i].SetViewing(y2.String())
+		shares[i].Point = "0x" + xsk.Text(16)
+		shares[i].SpendingEval = "0x" + spendingEval.Text(16)
+		shares[i].ViewingEval = "0x" + viewingEval.Text(16)
 	}
 
 	return shares, nil
 }
 
-// https://github.com/Consensys/gnark-crypto/blob/master/ecc/bn254/fr/polynomial/polynomial.go line 25
+// https://github.com/Consensys/gnark-crypto/blob/7c56ee003026d11987e8f965bf2674b4ca052ea8/ecc/bn254/fr/polynomial/polynomial.go#L25
 
-func evalSpending(polynomial []SECP256K1_fr.Element, x SECP256K1_fr.Element) SECP256K1_fr.Element {
-	var result SECP256K1_fr.Element = polynomial[len(polynomial) - 1]
-	for i := len(polynomial) - 2; i >= 0; i-- {
-		result.Mul(&result, &x)
-		result.Add(&result, &polynomial[i])
+func evalSpending(p []SECP256K1_fr.Element, x *SECP256K1_fr.Element) SECP256K1_fr.Element {
+	res := p[len(p)-1]
+	for i := len(p) - 2; i >= 0; i-- {
+		res.Mul(&res, x)
+		res.Add(&res, &(p)[i])
 	}
-	return result
+	return res
 }
 
-func evalViewing(polynomial []BN254_fr.Element, x BN254_fr.Element) BN254_fr.Element {
-	var result BN254_fr.Element = polynomial[len(polynomial) - 1]
-	for i := len(polynomial) - 2; i >= 0; i-- {
-		result.Mul(&result, &x)
-		result.Add(&result, &polynomial[i])
+func evalViewing(p []BN254_fr.Element, x *BN254_fr.Element) BN254_fr.Element {
+	res := p[len(p)-1]
+	for i := len(p) - 2; i >= 0; i-- {
+		res.Mul(&res, x)
+		res.Add(&res, &(p)[i])
 	}
-	return result
+	return res
 }
