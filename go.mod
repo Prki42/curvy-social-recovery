@@ -1,4 +1,4 @@
-module curvysocialrecovery
+module github.com/0x3327/curvy-social-recovery
 
 go 1.22.5
 

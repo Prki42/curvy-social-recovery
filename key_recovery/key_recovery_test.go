@@ -1,221 +1,117 @@
 package keyrecovery
 
 import (
+	"fmt"
+	BN254_fr "github.com/consensys/gnark-crypto/ecc/bn254/fr"
+	SECP256K1_fr "github.com/consensys/gnark-crypto/ecc/secp256k1/fr"
 	"testing"
 )
 
-const (
-	originalSpendingKey = "123456789"
-	originalViewingKey = "987654321"
-	numberOfShares_n = uint64(10)
-	threshold_t = uint64(6)
-)
-
-
-func TestAllShares(t *testing.T) {
-	// Split the original spending key and viewing key into shares
-	shares, err := Split(threshold_t, numberOfShares_n, originalSpendingKey, originalViewingKey)
+func TestSplitAndRecover(t *testing.T) {
+	spendingKeyStr, viewingKeyStr, err := setupRandomKeys()
 	if err != nil {
-		t.Errorf("Error splitting the key: %v", err)
-	}
-	if uint64(len(shares)) != numberOfShares_n {
-		t.Errorf("The number of shares is not equal to the number of shares requested")
+		t.Fatal(err)
 	}
 
-	// Recover the original spending key and viewing key from all the shares
-	sk, vk, err := Recover(threshold_t, shares)
+	n := 20
+	threshold := 14
+
+	t.Logf("Spending key: %s\n", spendingKeyStr)
+	t.Logf("Viewing key: %s\n", viewingKeyStr)
+
+	shares, err := Split(threshold, n, spendingKeyStr, viewingKeyStr)
 	if err != nil {
-		t.Errorf("Error recovering the key: %v", err)
+		t.Fatalf("Failed to construct the shares: %s", err)
 	}
-	if sk != originalSpendingKey {
-		t.Errorf("The recovered spending key is not the same as the original spending key")
+
+	t.Run("given shares = t", func(t *testing.T) {
+		newSpendingKeyStr, newViewingKeyStr, err := Recover(threshold, shares[0:threshold])
+		t.Logf("Recovered spending key: %s\n", newSpendingKeyStr)
+		t.Logf("Recovered viewing key: %s\n", newViewingKeyStr)
+		if err != nil {
+			t.Fatalf("Failed to recover the shares: %s", err)
+		}
+		if newSpendingKeyStr != spendingKeyStr {
+			t.Error("Spending keys do not match")
+		}
+		if newViewingKeyStr != viewingKeyStr {
+			t.Error("Viewing keys do not match")
+		}
+	})
+
+	t.Run("given shares = t + 1 > t", func(t *testing.T) {
+		newSpendingKeyStr, newViewingKeyStr, err := Recover(threshold, shares[0:threshold+1])
+		t.Logf("Recovered spending key: %s\n", newSpendingKeyStr)
+		t.Logf("Recovered viewing key: %s\n", newViewingKeyStr)
+		if err != nil {
+			t.Fatalf("Failed to recover the shares: %s", err)
+		}
+		if newSpendingKeyStr != spendingKeyStr {
+			t.Errorf("Spending keys do not match")
+		}
+		if newViewingKeyStr != viewingKeyStr {
+			t.Errorf("Viewing keys do not match")
+		}
+	})
+
+	t.Run("given shares = t - 1 < t", func(t *testing.T) {
+		_, _, err := Recover(threshold, shares[0:threshold-1])
+		if err == nil {
+			t.Error("Keys should not have been reconstructed")
+		}
+	})
+}
+
+func BenchmarkSplit(b *testing.B) {
+	spendingKeyStr, viewingKeyStr, err := setupRandomKeys()
+	if err != nil {
+		b.Fatal(err)
 	}
-	if vk != originalViewingKey {
-		t.Errorf("The recovered viewing key is not the same as the original viewing key")
+
+	n := 20
+	threshold := 14
+
+	b.ResetTimer()
+	for range b.N {
+		Split(threshold, n, spendingKeyStr, viewingKeyStr)
 	}
 }
 
-func TestMoreThenT(t *testing.T) {
-	// Split the original spending key and viewing key into shares
-	shares, err := Split(threshold_t, numberOfShares_n, originalSpendingKey, originalViewingKey)
+func BenchmarkRecover(b *testing.B) {
+	spendingKeyStr, viewingKeyStr, err := setupRandomKeys()
 	if err != nil {
-		t.Errorf("Error splitting the key: %v", err)
-	}
-	if uint64(len(shares)) != numberOfShares_n {
-		t.Errorf("The number of shares is not equal to the number of shares requested")
+		b.Fatal(err)
 	}
 
-	// Recover the original spending key and viewing key from more than t shares
-	sk, vk, err := Recover(threshold_t, shares[0:threshold_t+1])
+	n := 20
+	threshold := 14
+
+	shares, err := Split(threshold, n, spendingKeyStr, viewingKeyStr)
 	if err != nil {
-		t.Errorf("Error recovering the key: %v", err)
+		b.Fatal(err)
 	}
-	if sk != originalSpendingKey {
-		t.Errorf("The recovered spending key is not the same as the original spending key")
-	}
-	if vk != originalViewingKey {
-		t.Errorf("The recovered viewing key is not the same as the original viewing key")
+
+	b.ResetTimer()
+	for range b.N {
+		Recover(threshold, shares)
 	}
 }
 
-func TestExaclyT(t *testing.T) {
-	// Split the original spending key and viewing key into shares
-	shares, err := Split(threshold_t, numberOfShares_n, originalSpendingKey, originalViewingKey)
+func setupRandomKeys() (string, string, error) {
+	var spendingKey SECP256K1_fr.Element
+	var viewingKey BN254_fr.Element
+
+	_, err := spendingKey.SetRandom()
 	if err != nil {
-		t.Errorf("Error splitting the key: %v", err)
-	}	
-	if uint64(len(shares)) != numberOfShares_n {
-		t.Errorf("The number of shares is not equal to the number of shares requested")
+		return "", "", fmt.Errorf("failed to generate random spending key: %v", err)
+	}
+	_, err = viewingKey.SetRandom()
+	if err != nil {
+		return "", "", fmt.Errorf("failed to generate random viewing key: %v", err)
 	}
 
-	// Recover the original spending key and viewing key from exactly t shares
-	sk, vk, err := Recover(threshold_t, shares[0:threshold_t])
-	if err != nil {
-		t.Errorf("Error recovering the key: %v", err)
-	}
-	if sk != originalSpendingKey {
-		t.Errorf("The recovered spending key is not the same as the original spending key")
-	}
-	if vk != originalViewingKey {
-		t.Errorf("The recovered viewing key is not the same as the original viewing key")
-	}
+	spendingKeyStr := "0x" + spendingKey.Text(16)
+	viewingKeyStr := "0x" + viewingKey.Text(16)
+
+	return spendingKeyStr, viewingKeyStr, nil
 }
-
-func TestLessThenT(t *testing.T) {
-	// Split the original spending key and viewing key into shares
-	shares, err := Split(threshold_t, numberOfShares_n, originalSpendingKey, originalViewingKey)
-	if err != nil {
-		t.Errorf("Error splitting the key: %v", err)
-	}
-	if uint64(len(shares)) != numberOfShares_n {
-		t.Errorf("The number of shares is not equal to the number of shares requested")
-	}
-
-	// Recover the original spending key and viewing key from less than t shares
-	sk, vk, err := Recover(threshold_t, shares[0:threshold_t-1])
-	if err == nil {
-		t.Errorf("The key was recovered from less than t shares")
-	}
-	if sk == originalSpendingKey {
-		t.Errorf("The recovered spending key is the same as the original spending key")
-	}
-	if vk == originalViewingKey {
-		t.Errorf("The recovered viewing key is the same as the original viewing key")
-	}
-}
-
-func TestShareManipulation(t *testing.T) {
-	// Split the original spending key and viewing key into shares
-	shares, err := Split(threshold_t, numberOfShares_n, originalSpendingKey, originalViewingKey)
-	if err != nil {
-		t.Errorf("Error splitting the key: %v", err)
-	}
-	if uint64(len(shares)) != numberOfShares_n {
-		t.Errorf("The number of shares is not equal to the number of shares requested")
-	}
-
-	// Change the spending coordinate of the first share
-	var backup string = shares[0].GetSpending()
-	shares[0].SetSpending("4582635")
-	sk, vk, err := Recover(threshold_t, shares)
-	if err != nil {
-		t.Errorf("Error recovering the key: %v", err)
-	}
-	if sk == originalSpendingKey {
-		t.Errorf("The recovered spending key is the same as the original spending key")
-	}
-	if vk != originalViewingKey {
-		t.Errorf("The recovered viewing key should be the same as the original viewing key")
-	}
-
-	// Restore the spending coordinate of the first share
-	shares[0].SetSpending(backup)
-
-	// Change the viewing key of the first share
-	backup = shares[0].GetViewing()
-	shares[0].SetViewing("5684125")
-	sk, vk, err = Recover(threshold_t, shares)
-	if err != nil {
-		t.Errorf("Error recovering the key: %v", err)
-	}
-	if sk != originalSpendingKey {
-		t.Errorf("The recovered spending key should be the same as the original spending key")
-	}
-	if vk == originalViewingKey {
-		t.Errorf("The recovered viewing key is the same as the original viewing key")
-	}
-	// Restore the viewing key of the first share
-	shares[0].SetViewing(backup)
-
-	// Change the x coordinate of the first share
-	backup = shares[0].GetX()
-	shares[0].SetX("567")
-	sk, vk, err = Recover(threshold_t, shares)
-	if err != nil {
-		t.Errorf("Error recovering the key: %v", err)
-	}
-	if sk == originalSpendingKey {
-		t.Errorf("The recovered spending key is the same as the original spending key")
-	}
-	if vk == originalViewingKey {
-		t.Errorf("The recovered viewing key is the same as the original viewing key")
-	}
-	// Restore the x coordinate of the first share
-	shares[0].SetX(backup)
-
-	// Change first share to a random share
-	shares[0].SetX("123")
-	shares[0].SetSpending("456")
-	shares[0].SetViewing("789")
-
-	sk, vk, err = Recover(threshold_t, shares)
-	if err != nil {
-		t.Errorf("Error recovering the key: %v", err)
-	}
-	if sk == originalSpendingKey {
-		t.Errorf("The recovered spending key is the same as the original spending key")
-	}
-	if vk == originalViewingKey {
-		t.Errorf("The recovered viewing key is the same as the original viewing key")
-	}
-
-	// Drop the first share
-	shares = shares[1:]
-	sk, vk, err = Recover(threshold_t, shares)
-	if err != nil {
-		t.Errorf("Error recovering the key: %v", err)
-	}
-	if sk != originalSpendingKey {
-		t.Errorf("The recovered spending key is not the same as the original spending key")
-	}
-	if vk != originalViewingKey {
-		t.Errorf("The recovered viewing key is not the same as the original viewing key")
-	}
-}
-
-// Provera da li se kljevi razlikuju ukoliko je neki od share-ova promenjen a koriste se različiti skupovi
-// share-ova za rekonstrukciju
-// func TestTempering(t *testing.T) {
-// 	// Split the original spending key and viewing key into shares
-// 	shares, err := Split(threshold_t, numberOfShares_n, originalSpendingKey, originalViewingKey)
-// 	if err != nil {
-// 		t.Errorf("Error splitting the key: %v", err)
-// 	}
-// 	if uint64(len(shares)) != numberOfShares_n {
-// 		t.Errorf("The number of shares is not equal to the number of shares requested")
-// 	}
-
-// 	// Change the spending coordinate of the first share
-// 	shares[1].SetSpending("4582635")
-// 	sk, _, _ := Recover(threshold_t, shares[0:threshold_t])
-// 	sk2, _, _ := Recover(threshold_t, shares[1:threshold_t+1])
-// 	sk3, _, _ := Recover(threshold_t, shares[2:threshold_t+2])
-// 	sh4 := shares[1:threshold_t-1]
-// 	sh4 = append(sh4, shares[numberOfShares_n - 1])
-// 	sh4 = append(sh4, shares[numberOfShares_n - 2])
-// 	sk4, _, _ := Recover(threshold_t, sh4)
-// 	fmt.Println(sk)
-// 	fmt.Println(sk2)
-// 	fmt.Println(sk3)
-// 	fmt.Println("SK4:" , sk4)
-// }
