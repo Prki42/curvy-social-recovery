@@ -71,7 +71,8 @@ func BenchmarkSplit(b *testing.B) {
 	n := 20
 	threshold := 14
 
-	for b.Loop() {
+	b.ResetTimer()
+	for range b.N {
 		Split(threshold, n, spendingKeyStr, viewingKeyStr)
 	}
 }
@@ -90,7 +91,8 @@ func BenchmarkRecover(b *testing.B) {
 		b.Fatal(err)
 	}
 
-	for b.Loop() {
+	b.ResetTimer()
+	for range b.N {
 		Recover(threshold, shares)
 	}
 }
