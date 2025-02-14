@@ -21,10 +21,10 @@ func Recover(threshold int, shares []Share) (string, string, error) {
 
 	// Transform the shares from string to field element before interpolating
 	for i := range points {
-		_, errX1 := points[i].xS.SetString(shares[i].Point)
-		_, errX2 := points[i].xV.SetString(shares[i].Point)
-		_, errY1 := points[i].yS.SetString(shares[i].SpendingEval)
-		_, errY2 := points[i].yV.SetString(shares[i].ViewingEval)
+		_, errX1 := points[i].xS.SetString("0x" + shares[i].Point)
+		_, errX2 := points[i].xV.SetString("0x" + shares[i].Point)
+		_, errY1 := points[i].yS.SetString("0x" + shares[i].SpendingEval)
+		_, errY2 := points[i].yV.SetString("0x" + shares[i].ViewingEval)
 
 		if errX1 != nil {
 			return "", "", errX1
@@ -89,8 +89,8 @@ func Recover(threshold int, shares []Share) (string, string, error) {
 		vk.Add(&vk, &lvk)
 	}
 
-	spendingKey := "0x" + sk.Text(16)
-	viewingKey := "0x" + vk.Text(16)
+	spendingKey := sk.Text(16)
+	viewingKey := vk.Text(16)
 
 	return spendingKey, viewingKey, nil
 }

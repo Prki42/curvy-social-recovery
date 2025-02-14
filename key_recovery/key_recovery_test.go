@@ -110,8 +110,8 @@ func setupRandomKeys() (string, string, error) {
 		return "", "", fmt.Errorf("failed to generate random viewing key: %v", err)
 	}
 
-	spendingKeyStr := "0x" + spendingKey.Text(16)
-	viewingKeyStr := "0x" + viewingKey.Text(16)
+	spendingKeyStr := spendingKey.Text(16)
+	viewingKeyStr := viewingKey.Text(16)
 
 	return spendingKeyStr, viewingKeyStr, nil
 }

@@ -31,8 +31,8 @@ func Split(threshold, nOfShares int, spendingKey, viewingKey string) ([]Share, e
 	}
 
 	// Set the free coefficients of the polynomials to the spending key and viewing key
-	_, errs := skPolynomial[0].SetString(spendingKey)
-	_, errv := vkPolynomial[0].SetString(viewingKey)
+	_, errs := skPolynomial[0].SetString("0x" + spendingKey)
+	_, errv := vkPolynomial[0].SetString("0x" + viewingKey)
 
 	if errs != nil {
 		return nil, errs
@@ -55,9 +55,9 @@ func Split(threshold, nOfShares int, spendingKey, viewingKey string) ([]Share, e
 		viewingEval := evalViewing(vkPolynomial, &xvk)
 
 		// Set the share
-		shares[i].Point = "0x" + xsk.Text(16)
-		shares[i].SpendingEval = "0x" + spendingEval.Text(16)
-		shares[i].ViewingEval = "0x" + viewingEval.Text(16)
+		shares[i].Point = xsk.Text(16)
+		shares[i].SpendingEval = spendingEval.Text(16)
+		shares[i].ViewingEval = viewingEval.Text(16)
 	}
 
 	return shares, nil
