@@ -55,14 +55,17 @@ func Recover(threshold int, shares []Share) (string, string, error) {
 	// 						j ≠ i
 
 	for i := range points {
-		// Define interpolation variables as field elements for calculations
-		// and set them to the values of the shares (yi)
+		// Current term = y_i
 		var lsk SECP256K1_fr.Element
 		var lvk BN254_fr.Element
 		lsk.Set(&points[i].yS)
 		lvk.Set(&points[i].yV)
 
-		// Calculate the Li values for the current term
+		// Denominators for the Lagrange basis Li
+		denominatorS := SECP256K1_fr.One()
+		denominatorV := BN254_fr.One()
+
+		// Apply Li to the current term
 		for j := range points {
 			if i == j {
 				continue
@@ -72,27 +75,27 @@ func Recover(threshold int, shares []Share) (string, string, error) {
 			lsk.Mul(&lsk, &points[j].xS)
 			lvk.Mul(&lvk, &points[j].xV)
 
-			// calculate the denominator xj - xi
-			var denominatorS SECP256K1_fr.Element
-			var denominatorV BN254_fr.Element
-			denominatorS.Sub(&points[j].xS, &points[i].xS)
-			denominatorV.Sub(&points[j].xV, &points[i].xV)
+			// xj - xi
+			var diffS SECP256K1_fr.Element
+			var diffV BN254_fr.Element
+			diffS.Sub(&points[j].xS, &points[i].xS)
+			diffV.Sub(&points[j].xV, &points[i].xV)
 
-			// current term / (xj - xi)
-			lsk.Div(&lsk, &denominatorS)
-			lvk.Div(&lvk, &denominatorV)
-
+			// denominator *= (xj - xi)
+			denominatorS.Mul(&denominatorS, &diffS)
+			denominatorV.Mul(&denominatorV, &diffV)
 		}
+
+		// Divide by the denominator
+		lsk.Div(&lsk, &denominatorS)
+		lvk.Div(&lvk, &denominatorV)
 
 		// Add the current term to the spending key and viewing key
 		sk.Add(&sk, &lsk)
 		vk.Add(&vk, &lvk)
 	}
 
-	spendingKey := sk.Text(16)
-	viewingKey := vk.Text(16)
-
-	return spendingKey, viewingKey, nil
+	return sk.Text(16), vk.Text(16), nil
 }
 
 type point struct {
