@@ -21,8 +21,28 @@ func TestSplitAndRecover(t *testing.T) {
 
 	shares, err := Split(threshold, n, spendingKeyStr, viewingKeyStr)
 	if err != nil {
-		t.Fatalf("Failed to construct the shares: %s", err)
+		t.Fatalf("Failed to construct the shares: %s\n", err)
 	}
+
+	t.Logf("Shares: %v\n", shares)
+
+	t.Run("xi != 0 for all i", func(t *testing.T) {
+		for _, share := range shares {
+			if share.Point == "0" {
+				t.Fatal("One share evaluation point is zero")
+			}
+		}
+	})
+
+	t.Run("xi != xj for i != j", func(t *testing.T) {
+		for i, share := range shares {
+			for j := i + 1; j < len(shares); j++ {
+				if share.Point == shares[j].Point {
+					t.Fatal("Two shares have the same evaluation point")
+				}
+			}
+		}
+	})
 
 	t.Run("given shares = t", func(t *testing.T) {
 		newSpendingKeyStr, newViewingKeyStr, err := Recover(threshold, shares[0:threshold])
@@ -44,13 +64,13 @@ func TestSplitAndRecover(t *testing.T) {
 		t.Logf("Recovered spending key: %s\n", newSpendingKeyStr)
 		t.Logf("Recovered viewing key: %s\n", newViewingKeyStr)
 		if err != nil {
-			t.Fatalf("Failed to recover the shares: %s", err)
+			t.Fatalf("Failed to recover the shares: %s\n", err)
 		}
 		if newSpendingKeyStr != spendingKeyStr {
-			t.Errorf("Spending keys do not match")
+			t.Error("Spending keys do not match")
 		}
 		if newViewingKeyStr != viewingKeyStr {
-			t.Errorf("Viewing keys do not match")
+			t.Error("Viewing keys do not match")
 		}
 	})
 
@@ -103,11 +123,11 @@ func setupRandomKeys() (string, string, error) {
 
 	_, err := spendingKey.SetRandom()
 	if err != nil {
-		return "", "", fmt.Errorf("failed to generate random spending key: %v", err)
+		return "", "", fmt.Errorf("failed to generate random spending key: %v\n", err)
 	}
 	_, err = viewingKey.SetRandom()
 	if err != nil {
-		return "", "", fmt.Errorf("failed to generate random viewing key: %v", err)
+		return "", "", fmt.Errorf("failed to generate random viewing key: %v\n", err)
 	}
 
 	spendingKeyStr := spendingKey.Text(16)
