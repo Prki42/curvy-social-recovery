@@ -4,7 +4,9 @@ import (
 	"fmt"
 	BN254_fr "github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	SECP256K1_fr "github.com/consensys/gnark-crypto/ecc/secp256k1/fr"
+	"math/rand"
 	"testing"
+	"time"
 )
 
 func TestSplitAndRecover(t *testing.T) {
@@ -80,9 +82,41 @@ func TestSplitAndRecover(t *testing.T) {
 			t.Error("Keys should not have been reconstructed")
 		}
 	})
+
+	t.Run("given shares = t but has duplicate points", func(t *testing.T) {
+		sharesCopy := make([]Share, threshold)
+		copy(sharesCopy, shares[0:threshold])
+		sharesCopy[0].Point = sharesCopy[1].Point
+		_, _, err := Recover(threshold, sharesCopy[0:threshold])
+		if err == nil {
+			t.Error("Keys should not have been reconstructed")
+		}
+	})
+
+	t.Run("given shares > t and non duplicate points >= t", func(t *testing.T) {
+		sharesCopy := make([]Share, threshold*2)
+		copy(sharesCopy, shares)
+		copy(sharesCopy[threshold:], shares)
+
+		r := rand.New(rand.NewSource(time.Now().UnixNano()))
+		r.Shuffle(len(sharesCopy), func(i, j int) { sharesCopy[i], sharesCopy[j] = sharesCopy[j], sharesCopy[i] })
+
+		newSpendingKeyStr, newViewingKeyStr, err := Recover(threshold, sharesCopy)
+		t.Logf("Recovered spending key: %s\n", newSpendingKeyStr)
+		t.Logf("Recovered viewing key: %s\n", newViewingKeyStr)
+		if err != nil {
+			t.Fatalf("Failed to recover the shares: %s\n", err)
+		}
+		if newSpendingKeyStr != spendingKeyStr {
+			t.Error("Spending keys do not match")
+		}
+		if newViewingKeyStr != viewingKeyStr {
+			t.Error("Viewing keys do not match")
+		}
+	})
 }
 
-func BenchmarkSplit(b *testing.B) {
+func BenchmarkSplitAndRecover(b *testing.B) {
 	spendingKeyStr, viewingKeyStr, err := setupRandomKeys()
 	if err != nil {
 		b.Fatal(err)
@@ -91,30 +125,37 @@ func BenchmarkSplit(b *testing.B) {
 	n := 20
 	threshold := 14
 
-	b.ResetTimer()
-	for range b.N {
-		Split(threshold, n, spendingKeyStr, viewingKeyStr)
-	}
-}
-
-func BenchmarkRecover(b *testing.B) {
-	spendingKeyStr, viewingKeyStr, err := setupRandomKeys()
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	n := 20
-	threshold := 14
+	b.Run("Split", func(b *testing.B) {
+		b.ResetTimer()
+		for range b.N {
+			Split(threshold, n, spendingKeyStr, viewingKeyStr)
+		}
+	})
 
 	shares, err := Split(threshold, n, spendingKeyStr, viewingKeyStr)
 	if err != nil {
 		b.Fatal(err)
 	}
 
-	b.ResetTimer()
-	for range b.N {
-		Recover(threshold, shares)
-	}
+	b.Run("Recover (full)", func(b *testing.B) {
+		b.ResetTimer()
+		for range b.N {
+			Recover(threshold, shares)
+		}
+	})
+
+	b.Run("Recover (from chosen points)", func(b *testing.B) {
+		points, err := choosePointsFromShares(threshold, shares)
+		if err != nil {
+			b.Fatal(err)
+		}
+
+		b.ResetTimer()
+		for range b.N {
+			recoverFromPoints(points)
+		}
+	})
+
 }
 
 func setupRandomKeys() (string, string, error) {
