@@ -13,32 +13,16 @@ func Recover(threshold int, shares []Share) (string, string, error) {
 		return "", "", errors.New("number of shares is less than the threshold")
 	}
 
-	// Truncate the shares to the threshold value
-	// there is no need to use more than t=threshold shares for the interpolation
-	shares = shares[0:threshold]
-
-	var points = make([]point, threshold)
-
-	// Transform the shares from string to field element before interpolating
-	for i := range points {
-		_, errX1 := points[i].xS.SetString("0x" + shares[i].Point)
-		_, errX2 := points[i].xV.SetString("0x" + shares[i].Point)
-		_, errY1 := points[i].yS.SetString("0x" + shares[i].SpendingEval)
-		_, errY2 := points[i].yV.SetString("0x" + shares[i].ViewingEval)
-
-		if errX1 != nil {
-			return "", "", errX1
-		}
-		if errX2 != nil {
-			return "", "", errX2
-		}
-		if errY1 != nil {
-			return "", "", errY1
-		}
-		if errY2 != nil {
-			return "", "", errY2
-		}
+	points, err := choosePointsFromShares(threshold, shares)
+	if err != nil {
+		return "", "", err
 	}
+
+	return recoverFromPoints(points)
+
+}
+
+func recoverFromPoints(points []point) (string, string, error) {
 
 	// Define the spending key and viewing key as field elements for calculations
 	var sk SECP256K1_fr.Element
@@ -96,6 +80,46 @@ func Recover(threshold int, shares []Share) (string, string, error) {
 	}
 
 	return sk.Text(16), vk.Text(16), nil
+}
+
+func choosePointsFromShares(threshold int, shares []Share) ([]point, error) {
+
+	shareMap := make(map[string]int)
+	for i, share := range shares {
+		shareMap[share.Point] = i
+	}
+
+	// We should have at least threshold of distinct x points
+	if len(shareMap) < threshold {
+		return nil, errors.New("number of shares with distinct points is less than the threshold")
+	}
+
+	var points = make([]point, 0, threshold)
+
+	// Transform the shares from string to field element before interpolating
+	for xStr, shareIdx := range shareMap {
+		var p point
+		_, errX1 := p.xS.SetString("0x" + xStr)
+		_, errX2 := p.xV.SetString("0x" + xStr)
+		_, errY1 := p.yS.SetString("0x" + shares[shareIdx].SpendingEval)
+		_, errY2 := p.yV.SetString("0x" + shares[shareIdx].ViewingEval)
+
+		if errX1 != nil {
+			return nil, errX1
+		}
+		if errX2 != nil {
+			return nil, errX2
+		}
+		if errY1 != nil {
+			return nil, errY1
+		}
+		if errY2 != nil {
+			return nil, errY2
+		}
+
+		points = append(points, p)
+	}
+	return points, nil
 }
 
 type point struct {
