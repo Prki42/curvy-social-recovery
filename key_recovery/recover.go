@@ -14,8 +14,8 @@ func Recover(threshold int, shares []Share) (string, string, error) {
 		return "", "", errors.New("number of shares is less than the threshold")
 	}
 
-	if valid, pointStr := pointsUnique(shares); !valid {
-		return "", "", fmt.Errorf("possible tampering, point 0x%s appears more than once", pointStr)
+	if valid, idx := pointsUnique(shares); !valid {
+		return "", "", fmt.Errorf("possible tampering, point 0x%s (at index %d) appears more than once", shares[idx].Point, idx)
 	}
 
 	points, err := extractAllPointsFromShares(shares)
@@ -106,15 +106,15 @@ func recoverFromPoints(points []point) (string, string, error) {
 	return sk.Text(16), vk.Text(16), nil
 }
 
-func pointsUnique(shares []Share) (bool, string) {
+func pointsUnique(shares []Share) (bool, int) {
 	for i := range shares {
 		for j := i + 1; j < len(shares); j++ {
 			if shares[i].Point == shares[j].Point {
-				return false, shares[i].Point
+				return false, i
 			}
 		}
 	}
-	return true, ""
+	return true, 0
 }
 
 func extractAllPointsFromShares(shares []Share) ([]point, error) {
