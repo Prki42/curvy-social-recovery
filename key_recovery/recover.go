@@ -2,7 +2,6 @@ package keyrecovery
 
 import (
 	"errors"
-	"fmt"
 	BN254_fr "github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	SECP256K1_fr "github.com/consensys/gnark-crypto/ecc/secp256k1/fr"
 )
@@ -11,11 +10,17 @@ func Recover(threshold int, shares []Share) (string, string, error) {
 
 	// Check if the number of shares is less than the threshold
 	if len(shares) < threshold {
-		return "", "", errors.New("number of shares is less than the threshold")
+		return "", "", &NumberOfSharesLessThanThreshold{
+			N: len(shares),
+			T: threshold,
+		}
 	}
 
 	if valid, idx := pointsUnique(shares); !valid {
-		return "", "", fmt.Errorf("possible tampering, point 0x%s (at index %d) appears more than once", shares[idx].Point, idx)
+		return "", "", &DuplicatePointInSharesError{
+			Idx:   idx,
+			Point: shares[idx].Point,
+		}
 	}
 
 	points, err := extractAllPointsFromShares(shares)
@@ -40,7 +45,7 @@ func Recover(threshold int, shares []Share) (string, string, error) {
 	}
 
 	if skStr != skStr2 || vkStr != vkStr2 {
-		return "", "", errors.New("tampering detected, keys do not match")
+		return "", "", &RecoveredKeysDoNotMatchError{}
 	}
 
 	return skStr, vkStr, nil

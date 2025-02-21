@@ -1,8 +1,6 @@
 package keyrecovery
 
 import (
-	"errors"
-
 	BN254_fr "github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	SECP256K1_fr "github.com/consensys/gnark-crypto/ecc/secp256k1/fr"
 )
@@ -10,7 +8,10 @@ import (
 func Split(threshold, nOfShares int, spendingKey, viewingKey string) ([]Share, error) {
 
 	if threshold > nOfShares {
-		return nil, errors.New("threshold t should be less than or equal to number of shares n")
+		return nil, &NumberOfSharesLessThanThreshold{
+			N: nOfShares,
+			T: threshold,
+		}
 	}
 
 	// Generate the polynomials for the spending key and viewing key
