@@ -2,9 +2,10 @@ package keyrecovery
 
 import (
 	"fmt"
+	"testing"
+
 	BN254_fr "github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	SECP256K1_fr "github.com/consensys/gnark-crypto/ecc/secp256k1/fr"
-	"testing"
 )
 
 func TestSplitAndRecover(t *testing.T) {
